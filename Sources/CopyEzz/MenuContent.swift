@@ -47,7 +47,9 @@ struct MenuContent: View {
             openSettings()
         }
         .keyboardShortcut(",")
-        if updater.isEnabled {
+        if let version = updater.pendingVersion {
+            Button("⬆︎ Instalar CopyEzz \(version)…") { updater.checkForUpdates() }
+        } else if updater.isEnabled {
             Button("Buscar actualizaciones…") { updater.checkForUpdates() }
                 .disabled(!updater.canCheckForUpdates)
         }

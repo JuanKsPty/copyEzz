@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.1.1
+
+- Las actualizaciones encontradas en segundo plano se avisan en el menú ("⬆︎ Instalar CopyEzz …") en vez de abrir una ventana en medio de otra cosa.
+
 ## 0.1.0
 
 - Primera versión nativa: app de barra de menú que reemplaza al server Python + Hammerspoon.

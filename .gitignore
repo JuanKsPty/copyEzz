@@ -1,0 +1,17 @@
+.DS_Store
+.build/
+.swiftpm/
+dist/
+
+# Nunca subir certificados ni llaves de firma
+*.p12
+*.pem
+*.key
+
+# Datos locales
+history.jsonl
+samples/quiz-rowid.png
+
+# Versión anterior (Python)
+legacy/.venv/
+legacy/__pycache__/

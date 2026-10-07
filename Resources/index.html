@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>copyEzz</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f8; --fg: #1d1d1f; --muted: #6e6e73; --line: #e2e2e6; --err: #c4362b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161618; --fg: #f1f1f3; --muted: #9a9aa1; --line: #2c2c30; --err: #ff6b5e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 32px 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+  h1 { margin: 0 auto 0 0; font-size: 15px; }
+  #status { color: var(--muted); font-size: 13px; }
+  select, input { font: inherit; font-size: 13px; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+  input { width: 11rem; }
+  ol { list-style: none; margin: 0; padding: 0; }
+  li { padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .answer { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+  .error .answer { color: var(--err); }
+  .meta { margin-top: 4px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>copyEzz</h1>
+    <span id="status">conectando…</span>
+    <select id="backend" aria-label="Motor"></select>
+    <input id="model" aria-label="Modelo" spellcheck="false">
+  </header>
+  <ol id="history"></ol>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let defaults = {};
+
+  function titleFor(result) {
+    if (!result) return "copyEzz";
+    return result.type === "answer" ? result.answer : "⚠ " + result.error;
+  }
+
+  function item(result) {
+    const li = document.createElement("li");
+    li.className = result.type;
+    const answer = document.createElement("div");
+    answer.className = "answer";
+    answer.textContent = titleFor(result);
+    li.append(answer);
+    if (result.detail) {
+      const detail = document.createElement("div");
+      detail.textContent = result.detail;
+      li.append(detail);
+    }
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const time = new Date(result.ts * 1000).toLocaleTimeString();
+    meta.textContent = `${time} · ${result.backend} · ${result.model} · ${(result.ms / 1000).toFixed(1)} s`;
+    li.append(meta);
+    return li;
+  }
+
+  function showConfig(config) {
+    defaults = config.backends;
+    $("backend").replaceChildren(...Object.keys(defaults).map((name) => new Option(name, name)));
+    $("backend").value = config.backend;
+    $("model").value = config.model;
+  }
+
+  function showEmpty() {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = "Presiona ⌃⌥⌘A para capturar la pantalla.";
+    $("history").replaceChildren(li);
+  }
+
+  function saveConfig() {
+    fetch("/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ backend: $("backend").value, model: $("model").value }),
+    });
+  }
+
+  $("backend").onchange = () => { $("model").value = defaults[$("backend").value]; saveConfig(); };
+  $("model").onchange = saveConfig;
+
+  // SSE en vez de polling: Chrome frena los timers de pestañas en segundo plano, los eventos no.
+  const events = new EventSource("/events");
+  events.onerror = () => { $("status").textContent = "sin conexión"; document.title = "⚠ offline"; };
+  events.onmessage = (message) => {
+    const event = JSON.parse(message.data);
+    switch (event.type) {
+      case "hello": {
+        showConfig(event);
+        const results = event.results;
+        if (results.length) $("history").replaceChildren(...results.map(item).reverse());
+        else showEmpty();
+        document.title = event.busy ? "…" : titleFor(results.at(-1));
+        $("status").textContent = event.busy ? "pensando…" : "listo";
+        break;
+      }
+      case "config":
+        showConfig(event);
+        break;
+      case "thinking":
+        document.title = "…";
+        $("status").textContent = "pensando…";
+        break;
+      default: // answer | error
+        document.title = titleFor(event);
+        $("status").textContent = "listo";
+        $("history").querySelector(".empty")?.remove();
+        $("history").prepend(item(event));
+    }
+  };
+</script>
+</body>
+</html>

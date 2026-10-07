@@ -1,0 +1,9 @@
+[project]
+name = "copyezz"
+version = "0.1.0"
+description = "Atajo → captura de pantalla → modelo de visión → respuesta en el título de una pestaña localhost"
+requires-python = ">=3.12"
+dependencies = ["anthropic"]
+
+[tool.uv]
+package = false

@@ -41,7 +41,7 @@
 	<key>SUFeedURL</key>
 	<string>https://github.com/JuanKsPty/copyEzz/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>__SU_PUBLIC_ED_KEY__</string>
+	<string>kx1eKWikca0pSzglYWPIHatWNhhejHLVr6nt0cvLfyg=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 </dict>

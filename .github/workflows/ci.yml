@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versión de Swift
+        run: swift --version
+      - name: Tests
+        run: make test
+      # Sin el llavero de firma la app se firma ad-hoc: sirve para comprobar que el bundle se arma.
+      - name: Empaquetar
+        run: scripts/bundle.sh release 0.0.0

@@ -12,7 +12,7 @@ rm -f "$OUT"
 "$CHROME" --headless=new --disable-gpu --hide-scrollbars --user-data-dir="$PROFILE" \
   --window-size=1440,520 --screenshot="$OUT" "file://$PWD/samples/quiz-sample.html" 2>/dev/null &
 CHROME_PID=$!
-trap 'kill "$CHROME_PID" 2>/dev/null || true; rm -rf "$PROFILE"' EXIT
+trap 'kill "$CHROME_PID" 2>/dev/null || true; wait "$CHROME_PID" 2>/dev/null || true; rm -rf "$PROFILE" || true' EXIT
 
 for _ in $(seq 1 50); do
   [ -s "$OUT" ] && break

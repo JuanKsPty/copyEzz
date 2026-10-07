@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Plantilla: scripts/bundle.sh reemplaza __VERSION__. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>es</string>
+	<key>CFBundleDisplayName</key>
+	<string>CopyEzz</string>
+	<key>CFBundleExecutable</key>
+	<string>CopyEzz</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.juankspty.copyezz</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>CopyEzz</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>__VERSION__</string>
+	<key>CFBundleVersion</key>
+	<string>__VERSION__</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Juan Castillo · MIT</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>SUFeedURL</key>
+	<string>https://github.com/JuanKsPty/copyEzz/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>__SU_PUBLIC_ED_KEY__</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+</dict>
+</plist>

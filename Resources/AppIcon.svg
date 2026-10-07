@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Ícono de CopyEzz. Regenerar AppIcon.icns: scripts/make-icon.sh -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5B5BF0"/>
+      <stop offset="1" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#shadow)"/>
+  <g fill="none" stroke="#fff" stroke-width="56" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M260 390 V300 Q260 260 300 260 H390"/>
+    <path d="M634 260 H724 Q764 260 764 300 V390"/>
+    <path d="M764 634 V724 Q764 764 724 764 H634"/>
+    <path d="M390 764 H300 Q260 764 260 724 V634"/>
+  </g>
+  <text x="512" y="648" text-anchor="middle" font-family="-apple-system, 'SF Pro Rounded', 'Helvetica Neue', Arial, sans-serif"
+        font-size="360" font-weight="800" fill="#fff">?</text>
+</svg>

@@ -17,11 +17,11 @@ public struct AnthropicAPIBackend: Backend {
         !model.contains("haiku")
     }
 
-    public static func requestBody(png: Data, model: String) -> [String: Any] {
+    public static func requestBody(png: Data, model: String, context: String? = nil) -> [String: Any] {
         var body: [String: Any] = [
             "model": model,
             "max_tokens": 4096,
-            "system": Prompt.system,
+            "system": system(context: context),
             "messages": [["role": "user", "content": MessageContent.imageAndText(png: png)]],
         ]
         if supportsEffortAndFallbacks(model) {
@@ -31,7 +31,16 @@ public struct AnthropicAPIBackend: Backend {
         return body
     }
 
-    public static func makeRequest(baseURL: URL, apiKey: String, png: Data, model: String) throws -> URLRequest {
+    /// Con contexto, el system prompt se marca para la caché: las capturas siguientes (dentro de 5 min)
+    /// leen el material de la caché, más rápido y a ~10 % del costo, en vez de procesarlo de nuevo.
+    static func system(context: String?) -> Any {
+        guard let context, !context.isEmpty else { return Prompt.system }
+        return [["type": "text", "text": Prompt.system(context: context), "cache_control": ["type": "ephemeral"]]]
+    }
+
+    public static func makeRequest(
+        baseURL: URL, apiKey: String, png: Data, model: String, context: String? = nil
+    ) throws -> URLRequest {
         var request = URLRequest(url: baseURL.appending(path: "v1/messages"), timeoutInterval: 120)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "content-type")
@@ -40,7 +49,7 @@ public struct AnthropicAPIBackend: Backend {
         if supportsEffortAndFallbacks(model) {
             request.setValue(fallbackBeta, forHTTPHeaderField: "anthropic-beta")
         }
-        request.httpBody = try requestBody(png: png, model: model).jsonData()
+        request.httpBody = try requestBody(png: png, model: model, context: context).jsonData()
         return request
     }
 
@@ -64,9 +73,9 @@ public struct AnthropicAPIBackend: Backend {
         return blocks.filter { $0["type"] as? String == "text" }.compactMap { $0["text"] as? String }.joined()
     }
 
-    public func solve(png: Data, model: String) async throws -> String {
+    public func solve(png: Data, model: String, context: String?) async throws -> String {
         guard let apiKey, !apiKey.isEmpty else { throw CopyEzzError("falta ANTHROPIC_API_KEY") }
-        let request = try Self.makeRequest(baseURL: baseURL, apiKey: apiKey, png: png, model: model)
+        let request = try Self.makeRequest(baseURL: baseURL, apiKey: apiKey, png: png, model: model, context: context)
         let data: Data, response: URLResponse
         do {
             (data, response) = try await URLSession.shared.data(for: request)

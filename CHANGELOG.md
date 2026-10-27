@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.2.0
+
+- Contexto: sube un `.txt` con apuntes, el temario o un banco de preguntas (desde la página con **+ contexto .txt** o en Ajustes) y el modelo responde con ese material. Funciona con los tres motores, se conserva al reiniciar y se quita con ×.
+- Cada respuesta indica con qué archivo de contexto se respondió.
+
 ## 0.1.1
 
 - Las actualizaciones encontradas en segundo plano se avisan en el menú ("⬆︎ Instalar CopyEzz …") en vez de abrir una ventana en medio de otra cosa.

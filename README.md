@@ -21,6 +21,7 @@ Las versiones nuevas se instalan solas con Sparkle (o desde el menú: **Buscar a
 - **Botón lateral "adelante"** del mouse (botón 4) o **⌃⌥⌘A**. Ambos se cambian en Ajustes con **Cambiar** y presionando el botón o atajo nuevo. El clic se consume, así que el navegador no navega.
 - La página `http://127.0.0.1:8765` se abre al iniciar (desactivable). Mientras piensa el título es `…`; si algo falla, `⚠ <error>`. No fijes la pestaña: las pestañas fijadas no muestran el título.
 - Opcional: **Mostrar la respuesta también en la barra de menú**.
+- **Contexto**: sube un `.txt` con apuntes, el temario o un banco de preguntas con **+ contexto .txt** en la página (o en **Ajustes → Contexto**). Se envía con cada captura y el modelo responde con ese material; si la pregunta no aparece ahí, usa lo que sabe. Uno a la vez (subir otro lo reemplaza), máximo 1 MB, en UTF-8, UTF-16 o Windows-1252. Se conserva al reiniciar y se quita con **×**. Con la API y con Claude Code el material queda en la caché de prompts, así que las capturas siguientes no lo vuelven a procesar.
 - El motor y el modelo se cambian desde el menú, la página o Ajustes. Cada respuesta queda en `~/Library/Application Support/CopyEzz/history.jsonl`.
 
 ## Motores
@@ -43,6 +44,10 @@ make run                         # arma dist/CopyEzz.app en debug, reemplaza la 
 # Probar sin mouse: envía la muestra y mira el título de la pestaña en Chrome headless
 curl --data-binary @samples/quiz-sample.png -H 'Content-Type: image/png' http://127.0.0.1:8765/solve
 node scripts/title-check.mjs
+
+# Cargar o quitar el contexto
+curl --data-binary @apuntes.txt -H 'X-Filename: apuntes.txt' http://127.0.0.1:8765/context
+curl -X DELETE http://127.0.0.1:8765/context
 ```
 
 Estructura:

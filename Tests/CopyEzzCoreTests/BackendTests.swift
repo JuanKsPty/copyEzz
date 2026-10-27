@@ -15,6 +15,16 @@ private func json(_ data: Data) throws -> [String: Any] {
         #expect(arguments.contains("--strict-mcp-config"))
         let model = arguments.firstIndex(of: "--model")
         #expect(model.map { arguments[$0 + 1] } == "haiku")
+        #expect(arguments.contains(Prompt.system))
+    }
+
+    @Test func passesContextPromptAsFile() {
+        let file = URL(filePath: "/tmp/prompt.txt")
+        let arguments = ClaudeCodeBackend.arguments(model: "haiku", systemPromptFile: file)
+        #expect(!arguments.contains("--system-prompt"))
+        let flag = arguments.firstIndex(of: "--system-prompt-file")
+        #expect(flag.map { arguments[$0 + 1] } == "/tmp/prompt.txt")
+        #expect(arguments.contains("--strict-mcp-config"))
     }
 
     @Test func sendsImageAsStreamJSONLine() throws {
@@ -74,6 +84,17 @@ private func json(_ data: Data) throws -> [String: Any] {
         #expect(body["output_config"] == nil)
     }
 
+    @Test func cachesSystemPromptWithContext() throws {
+        let request = try AnthropicAPIBackend.makeRequest(
+            baseURL: URL(string: "https://api.anthropic.com")!, apiKey: "test", png: png, model: "claude-opus-5-5",
+            context: "TO_DATE convierte texto a fecha.")
+        let body = try json(try #require(request.httpBody))
+        let system = try #require(body["system"] as? [[String: Any]])
+        #expect(system.count == 1)
+        #expect(system[0]["text"] as? String == Prompt.system(context: "TO_DATE convierte texto a fecha."))
+        #expect((system[0]["cache_control"] as? [String: Any])?["type"] as? String == "ephemeral")
+    }
+
     @Test func joinsTextBlocks() throws {
         let response = #"{"stop_reason":"end_turn","content":[{"type":"thinking","thinking":""},{"type":"text","text":"b) TO_DATE"},{"type":"text","text":"\nporque sí"}]}"#
         #expect(try AnthropicAPIBackend.parseResponse(data: Data(response.utf8), status: 200) == "b) TO_DATE\nporque sí")
@@ -95,7 +116,7 @@ private func json(_ data: Data) throws -> [String: Any] {
 
     @Test func requiresAPIKey() async {
         await #expect(throws: CopyEzzError("falta ANTHROPIC_API_KEY")) {
-            try await AnthropicAPIBackend(apiKey: nil).solve(png: png, model: "claude-opus-5-5")
+            try await AnthropicAPIBackend(apiKey: nil).solve(png: png, model: "claude-opus-5-5", context: nil)
         }
     }
 }
@@ -108,6 +129,16 @@ private func json(_ data: Data) throws -> [String: Any] {
         let messages = try #require(body["messages"] as? [[String: Any]])
         #expect(messages.first?["content"] as? String == Prompt.system)
         #expect((messages.last?["images"] as? [String])?.first == png.base64EncodedString())
+        #expect((body["options"] as? [String: Any])?["num_ctx"] == nil)
+    }
+
+    @Test func growsWindowForContext() throws {
+        let context = String(repeating: "a", count: 300_000)
+        let body = OllamaBackend.requestBody(png: png, model: "qwen2.5vl:7b", context: context)
+        let messages = try #require(body["messages"] as? [[String: Any]])
+        #expect(messages.first?["content"] as? String == Prompt.system(context: context))
+        #expect((body["options"] as? [String: Any])?["num_ctx"] as? Int == 106_496)  // 100 mil + 4096, redondeado
+        #expect(OllamaBackend.contextLength(for: "corto") == 8192)
     }
 
     @Test func parsesResponse() throws {

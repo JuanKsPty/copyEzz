@@ -24,6 +24,9 @@ struct MenuContent: View {
             Text(String(last.title.prefix(60)))
         }
         Text(state.statusLine)
+        if let context = state.context {
+            Text("Contexto: \(context.name)")
+        }
         Divider()
 
         Button("Capturar ahora") { state.captureNow() }

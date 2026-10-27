@@ -15,12 +15,15 @@ final class AppState {
     private(set) var accessibilityGranted = Permissions.accessibility
     private(set) var screenRecordingGranted = Permissions.screenRecording
     private(set) var recordingTarget: RecordingTarget?
+    /// Archivo .txt de apuntes o banco de preguntas que acompaña a cada captura.
+    private(set) var context: QuizContext?
 
     @ObservationIgnored private var seq = 0
     @ObservationIgnored private let server = LocalServer(indexHTML: AppState.loadIndexHTML())
     @ObservationIgnored private let input = InputMonitor()
     @ObservationIgnored private let capturer = ScreenCapturer()
     @ObservationIgnored private let history = HistoryLog()
+    @ObservationIgnored private let contextStore = ContextStore()
     @ObservationIgnored private var permissionTimer: Timer?
 
     var pageURL: URL { URL(string: "http://127.0.0.1:\(prefs.port)")! }
@@ -42,6 +45,7 @@ final class AppState {
         input.onTrigger = { [weak self] in self?.solve(png: nil) }
         input.onRecorded = { [weak self] recorded in self?.finishRecording(recorded) }
 
+        context = contextStore.load()
         startServer()
         if !accessibilityGranted { Permissions.requestAccessibility() }
         refreshPermissions()
@@ -62,10 +66,12 @@ final class AppState {
         let handlers = LocalServer.Handlers(
             hello: { [weak self] in
                 guard let self else { return .thinking(id: 0) }
-                return .hello(self.backendConfig, busy: self.busy, results: self.results)
+                return .hello(self.backendConfig, busy: self.busy, results: self.results, context: self.context?.info)
             },
             solve: { [weak self] png in self?.solve(png: png) },
             config: { [weak self] backend, model in self?.applyConfig(backend: backend, model: model) },
+            setContext: { [weak self] name, data in try self?.setContext(name: name, data: data) },
+            clearContext: { [weak self] in self?.clearContext() },
             failed: { [weak self] message in self?.serverError = message }
         )
         do {
@@ -124,6 +130,24 @@ final class AppState {
         return backendConfig
     }
 
+    /// Carga el archivo de contexto (desde Ajustes o `POST /context`); reemplaza al anterior.
+    func setContext(name: String, data: Data) throws {
+        let context = try QuizContext(name: name, data: data)
+        do {
+            try contextStore.save(context)
+        } catch {
+            throw CopyEzzError("no se pudo guardar el contexto")
+        }
+        self.context = context
+        server.publish(.context(context.info))
+    }
+
+    func clearContext() {
+        contextStore.remove()
+        context = nil
+        server.publish(.context(nil))
+    }
+
     func requestAccessibility() {
         Permissions.requestAccessibility()
         Permissions.openSettings(.accessibility)
@@ -155,17 +179,17 @@ final class AppState {
     func solve(png: Data?) {
         seq += 1
         let id = seq
-        let backend = prefs.backend, model = prefs.model
+        let backend = prefs.backend, model = prefs.model, context = context
         busy = true
         server.publish(.thinking(id: id))
 
         Task {
             let started = ContinuousClock.now
             var result = SolveResult(type: .answer, id: id, ts: Date().timeIntervalSince1970,
-                                     backend: backend.rawValue, model: model, ms: 0)
+                                     backend: backend.rawValue, model: model, context: context?.name, ms: 0)
             do {
                 let image = if let png { try PNGImage.downscaled(png) } else { try await capturer.captureDisplayUnderMouse() }
-                let text = try await makeBackend(backend).solve(png: image, model: model)
+                let text = try await makeBackend(backend).solve(png: image, model: model, context: context?.text)
                 let parts = AnswerParser.split(text)
                 result.answer = parts.answer
                 result.detail = parts.detail

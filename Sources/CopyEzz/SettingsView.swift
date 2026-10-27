@@ -1,5 +1,6 @@
 import CopyEzzCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Bindable var state: AppState
@@ -7,6 +8,8 @@ struct SettingsView: View {
     @State private var launchAtLogin = LoginItem.isEnabled
     @State private var loginItemError: String?
     @State private var detectedClaude = ClaudeCodeBackend.locate()?.path
+    @State private var choosingContext = false
+    @State private var contextError: String?
 
     var body: some View {
         Form {
@@ -29,6 +32,28 @@ struct SettingsView: View {
                 case .ollama:
                     Text("Requiere Ollama en 127.0.0.1:11434 con el modelo descargado (`ollama pull \(state.prefs.model)`).")
                         .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Contexto") {
+                LabeledContent("Archivo") {
+                    HStack {
+                        if let info = state.context?.info {
+                            Text("\(info.name) · \(ByteCountFormatter.string(fromByteCount: Int64(info.size), countStyle: .file))")
+                                .lineLimit(1).truncationMode(.middle)
+                        } else {
+                            Text("ninguno").foregroundStyle(.secondary)
+                        }
+                        Button("Elegir…") { choosingContext = true }
+                        if state.context != nil {
+                            Button("Quitar") { state.clearContext() }
+                        }
+                    }
+                }
+                Text("Apuntes o banco de preguntas en .txt (máx. 1 MB). Se envía con cada captura y el modelo responde con ese material.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let contextError {
+                    Text(contextError).font(.caption).foregroundStyle(.red)
                 }
             }
 
@@ -79,8 +104,23 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .fileImporter(isPresented: $choosingContext, allowedContentTypes: [.plainText]) { result in
+            loadContext(result)
+        }
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func loadContext(_ result: Result<URL, Error>) {
+        contextError = nil
+        do {
+            let url = try result.get()
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            try state.setContext(name: url.lastPathComponent, data: Data(contentsOf: url))
+        } catch {
+            contextError = (error as? CopyEzzError)?.message ?? "no se pudo leer el archivo"
+        }
     }
 
     private func recordButton(current: String, target: RecordingTarget, prompt: String) -> some View {

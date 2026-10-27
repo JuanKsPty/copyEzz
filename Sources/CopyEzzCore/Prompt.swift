@@ -14,4 +14,20 @@ public enum Prompt {
         """
 
     public static let userText = "Responde la pregunta de esta captura."
+
+    /// Instrucciones con el material del usuario. El material va primero (los documentos largos rinden
+    /// mejor antes de las instrucciones) y no cambia entre capturas, así que la caché de prompts lo reutiliza.
+    public static func system(context: String?) -> String {
+        guard let context, !context.isEmpty else { return system }
+        return """
+            Material de referencia que cargó el usuario (apuntes, banco de preguntas o temario del curso):
+            <contexto>
+            \(context)
+            </contexto>
+
+            \(system)
+            Si la pregunta aparece en el material o este la responde, básate en él aunque difiera de tu \
+            conocimiento general; si no, responde con lo que sabes.
+            """
+    }
 }

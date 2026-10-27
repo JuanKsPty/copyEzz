@@ -21,6 +21,11 @@
   #status { color: var(--muted); font-size: 13px; }
   select, input { font: inherit; font-size: 13px; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
   input { width: 11rem; }
+  #context { display: flex; align-items: center; min-width: 0; font-size: 13px; }
+  #context label { max-width: 15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+    color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; padding: 4px 8px; }
+  #context.loaded label { color: inherit; border-style: solid; }
+  #context button { font: inherit; color: var(--muted); background: transparent; border: 0; padding: 4px 6px; cursor: pointer; }
   ol { list-style: none; margin: 0; padding: 0; }
   li { padding: 14px 0; border-bottom: 1px solid var(--line); }
   .answer { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
@@ -36,6 +41,12 @@
     <span id="status">conectando…</span>
     <select id="backend" aria-label="Motor"></select>
     <input id="model" aria-label="Modelo" spellcheck="false">
+    <span id="context">
+      <label title="Apuntes o banco de preguntas (.txt, máx. 1 MB). Se envía con cada captura.">
+        <input id="context-file" type="file" accept=".txt,text/plain" hidden><span id="context-name"></span>
+      </label>
+      <button id="context-clear" type="button" title="Quitar contexto" aria-label="Quitar contexto" hidden>×</button>
+    </span>
   </header>
   <ol id="history"></ol>
 </main>
@@ -63,7 +74,8 @@
     const meta = document.createElement("div");
     meta.className = "meta";
     const time = new Date(result.ts * 1000).toLocaleTimeString();
-    meta.textContent = `${time} · ${result.backend} · ${result.model} · ${(result.ms / 1000).toFixed(1)} s`;
+    meta.textContent = `${time} · ${result.backend} · ${result.model} · ${(result.ms / 1000).toFixed(1)} s`
+      + (result.context ? ` · ${result.context}` : "");
     li.append(meta);
     return li;
   }
@@ -73,6 +85,14 @@
     $("backend").replaceChildren(...Object.keys(defaults).map((name) => new Option(name, name)));
     $("backend").value = config.backend;
     $("model").value = config.model;
+  }
+
+  function showContext(context) {
+    $("context").classList.toggle("loaded", !!context);
+    $("context-name").textContent = context
+      ? `📄 ${context.name} · ${Math.max(1, Math.round(context.size / 1024))} KB`
+      : "+ contexto .txt";
+    $("context-clear").hidden = !context;
   }
 
   function showEmpty() {
@@ -93,6 +113,20 @@
   $("backend").onchange = () => { $("model").value = defaults[$("backend").value]; saveConfig(); };
   $("model").onchange = saveConfig;
 
+  // Las páginas abiertas se enteran del contexto nuevo por el evento "context".
+  $("context-file").onchange = async () => {
+    const file = $("context-file").files[0];
+    $("context-file").value = "";  // así se puede volver a elegir el mismo archivo
+    if (!file) return;
+    const response = await fetch("/context", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain", "X-Filename": encodeURIComponent(file.name) },
+      body: file,
+    }).catch(() => null);
+    if (!response?.ok) $("status").textContent = "⚠ " + (response ? await response.text() : "sin conexión");
+  };
+  $("context-clear").onclick = () => fetch("/context", { method: "DELETE" });
+
   // SSE en vez de polling: Chrome frena los timers de pestañas en segundo plano, los eventos no.
   const events = new EventSource("/events");
   events.onerror = () => { $("status").textContent = "sin conexión"; document.title = "⚠ offline"; };
@@ -101,6 +135,7 @@
     switch (event.type) {
       case "hello": {
         showConfig(event);
+        showContext(event.context);
         const results = event.results;
         if (results.length) $("history").replaceChildren(...results.map(item).reverse());
         else showEmpty();
@@ -110,6 +145,9 @@
       }
       case "config":
         showConfig(event);
+        break;
+      case "context":
+        showContext(event.context);
         break;
       case "thinking":
         document.title = "…";

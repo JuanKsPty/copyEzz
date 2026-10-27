@@ -10,12 +10,15 @@ public struct ClaudeCodeBackend: Backend {
         self.timeout = timeout
     }
 
-    public static func arguments(model: String) -> [String] {
-        [
+    /// `systemPromptFile` trae el prompt con el contexto del usuario: como argumento podría pasar el
+    /// límite de macOS para la línea de comandos (ARG_MAX, 1 MB).
+    public static func arguments(model: String, systemPromptFile: URL? = nil) -> [String] {
+        let systemPrompt = systemPromptFile.map { ["--system-prompt-file", $0.path] } ?? ["--system-prompt", Prompt.system]
+        return [
             "-p",
             "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
             "--model", model,
-            "--system-prompt", Prompt.system,
+        ] + systemPrompt + [
             // Sin herramientas, MCP, sesión guardada ni hooks: solo una respuesta, y arranque más rápido.
             "--tools", "", "--strict-mcp-config", "--no-session-persistence", "--setting-sources", "",
         ]
@@ -45,16 +48,28 @@ public struct ClaudeCodeBackend: Backend {
         throw CopyEzzError(tail.isEmpty ? "claude salió con código \(status)" : String(tail))
     }
 
-    public func solve(png: Data, model: String) async throws -> String {
+    public func solve(png: Data, model: String, context: String?) async throws -> String {
         var environment = ProcessInfo.processInfo.environment
         // Las apps abiertas al iniciar sesión no heredan el PATH de la terminal.
         let extraPaths = [executable.deletingLastPathComponent().path] + Self.searchDirectories
         environment["PATH"] = (extraPaths + [environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"]).joined(separator: ":")
 
+        var promptFile: URL?
+        if let context, !context.isEmpty {
+            let file = FileManager.default.temporaryDirectory.appending(path: "copyezz-prompt-\(UUID().uuidString).txt")
+            do {
+                try Data(Prompt.system(context: context).utf8).write(to: file)
+            } catch {
+                throw CopyEzzError("no se pudo preparar el contexto para claude")
+            }
+            promptFile = file
+        }
+        defer { if let promptFile { try? FileManager.default.removeItem(at: promptFile) } }
+
         let output: ProcessRunner.Output
         do {
             output = try await ProcessRunner.run(
-                executable, arguments: Self.arguments(model: model), input: Self.stdinLine(png: png),
+                executable, arguments: Self.arguments(model: model, systemPromptFile: promptFile), input: Self.stdinLine(png: png),
                 environment: environment, currentDirectory: FileManager.default.temporaryDirectory, timeout: timeout
             )
         } catch {

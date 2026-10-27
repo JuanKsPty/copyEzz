@@ -47,14 +47,80 @@ import Testing
 
     @Test func encodesHelloAndThinking() throws {
         let config = BackendConfig(backend: "claude-code", model: "sonnet", backends: BackendKind.defaultModels)
-        let hello = try decode(.hello(config, busy: true, results: []))
+        let hello = try decode(.hello(config, busy: true, results: [], context: nil))
         #expect(hello["type"] as? String == "hello")
         #expect(hello["busy"] as? Bool == true)
+        #expect(hello["context"] == nil)
         #expect((hello["backends"] as? [String: String])?["ollama"] == "qwen2.5vl:7b")
         #expect(try decode(.thinking(id: 7))["id"] as? Int == 7)
 
         let frame = String(decoding: ServerEvent.thinking(id: 7).sseFrame(), as: UTF8.self)
         #expect(frame.hasPrefix("data: {") && frame.hasSuffix("}\n\n"))
+    }
+
+    @Test func encodesContext() throws {
+        let info = QuizContext(name: "apuntes.txt", text: "canción").info
+        #expect(info.size == 8)
+        let loaded = try decode(.context(info))
+        #expect(loaded["type"] as? String == "context")
+        #expect((loaded["context"] as? [String: Any])?["name"] as? String == "apuntes.txt")
+        #expect(try decode(.context(nil))["context"] == nil)
+
+        let config = BackendConfig(backend: "api", model: "m", backends: [:])
+        let hello = try decode(.hello(config, busy: false, results: [], context: info))
+        #expect((hello["context"] as? [String: Any])?["size"] as? Int == 8)
+
+        let result = SolveResult(type: .answer, id: 1, ts: 1, backend: "api", model: "m", answer: "a", context: "apuntes.txt", ms: 1)
+        #expect(try decode(.result(result))["context"] as? String == "apuntes.txt")
+    }
+}
+
+@Suite struct QuizContextTests {
+    @Test(arguments: [
+        (Data("canción\r\nb) TO_DATE\n".utf8), "canción\nb) TO_DATE"),
+        (Data([0xEF, 0xBB, 0xBF]) + Data("con BOM".utf8), "con BOM"),
+        (Data([0x63, 0x61, 0x6E, 0x63, 0x69, 0xF3, 0x6E]), "canción"),  // Windows-1252
+        (Data([0xFF, 0xFE, 0xF1, 0x00, 0x61, 0x00]), "ña"),  // UTF-16 LE
+    ])
+    func decodesCommonEncodings(data: Data, text: String) throws {
+        #expect(try QuizContext(name: "apuntes.txt", data: data).text == text)
+    }
+
+    @Test func keepsOnlyTheFileName() throws {
+        #expect(try QuizContext(name: "/Users/x/Química.txt", data: Data("x".utf8)).name == "Química.txt")
+        #expect(try QuizContext(name: "", data: Data("x".utf8)).name == "contexto.txt")
+    }
+
+    @Test func rejectsEmptyBinaryAndOversized() {
+        #expect(throws: CopyEzzError("el archivo de contexto está vacío")) {
+            try QuizContext(name: "a.txt", data: Data(" \n\t".utf8))
+        }
+        #expect(throws: CopyEzzError("el contexto no parece un archivo de texto")) {
+            try QuizContext(name: "a.txt", data: Data("%PDF-1.7\u{0}\u{1}".utf8))
+        }
+        #expect(throws: CopyEzzError("el archivo de contexto pasa de 1 MB")) {
+            try QuizContext(name: "a.txt", data: Data(count: QuizContext.maxBytes + 1))
+        }
+    }
+
+    @Test func goesFirstInTheSystemPrompt() {
+        #expect(Prompt.system(context: nil) == Prompt.system)
+        #expect(Prompt.system(context: "") == Prompt.system)
+        let prompt = Prompt.system(context: "b) TO_DATE")
+        #expect(prompt.contains("<contexto>\nb) TO_DATE\n</contexto>"))
+        #expect(prompt.range(of: "<contexto>")!.lowerBound < prompt.range(of: Prompt.system)!.lowerBound)
+    }
+
+    @Test func persistsBetweenSessions() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "copyezz-test-\(UUID())/context.json")
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let store = ContextStore(url: url)
+        #expect(store.load() == nil)
+        let context = QuizContext(name: "apuntes.txt", text: "b) TO_DATE")
+        try store.save(context)
+        #expect(store.load() == context)
+        store.remove()
+        #expect(store.load() == nil)
     }
 }
 

@@ -3,13 +3,15 @@ import Foundation
 import Network
 
 /// Server HTTP mínimo en 127.0.0.1 con el mismo contrato que legacy/copyezz.py:
-/// `GET /`, `GET /events` (SSE), `POST /solve` y `POST /config`.
+/// `GET /`, `GET /events` (SSE), `POST /solve` y `POST /config`; más `POST`/`DELETE /context`.
 /// Todo su estado vive en `queue`; la app se comunica con él solo mediante `Handlers` y `publish`.
 final class LocalServer: @unchecked Sendable {
     struct Handlers: Sendable {
         var hello: @MainActor @Sendable () -> ServerEvent
         var solve: @MainActor @Sendable (Data?) -> Void
         var config: @MainActor @Sendable (_ backend: String, _ model: String?) -> BackendConfig?
+        var setContext: @MainActor @Sendable (_ name: String, _ data: Data) throws -> Void
+        var clearContext: @MainActor @Sendable () -> Void
         var failed: @MainActor @Sendable (String) -> Void
     }
 
@@ -128,6 +130,22 @@ final class LocalServer: @unchecked Sendable {
                 } ?? HTTPResponse.text(400, "backend invalido")
                 self.queue.async { self.respond(response, on: connection) }
             }
+        case ("POST", "/context"):
+            // Cuerpo: el .txt tal cual. El nombre llega con encodeURIComponent porque puede tener tildes.
+            let name = request.header("x-filename")?.removingPercentEncoding ?? ""
+            Task { @MainActor in
+                let response: Data
+                do {
+                    try handlers.setContext(name, request.body)
+                    response = HTTPResponse.text(200, "ok")
+                } catch {
+                    response = HTTPResponse.text(400, (error as? CopyEzzError)?.message ?? "no se pudo cargar el contexto")
+                }
+                self.queue.async { self.respond(response, on: connection) }
+            }
+        case ("DELETE", "/context"):
+            Task { @MainActor in handlers.clearContext() }
+            respond(HTTPResponse.text(200, "ok"), on: connection)
         default:
             respond(HTTPResponse.text(404, "not found"), on: connection)
         }

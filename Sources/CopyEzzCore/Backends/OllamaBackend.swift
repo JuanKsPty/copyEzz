@@ -8,17 +8,29 @@ public struct OllamaBackend: Backend {
         self.baseURL = baseURL
     }
 
-    public static func requestBody(png: Data, model: String) -> [String: Any] {
-        [
+    public static func requestBody(png: Data, model: String, context: String? = nil) -> [String: Any] {
+        var options: [String: Any] = ["temperature": 0]
+        if let context, !context.isEmpty {
+            options["num_ctx"] = contextLength(for: context)
+        }
+        return [
             "model": model,
             "stream": false,
             "keep_alive": "30m",  // mantiene el modelo en memoria: ~0.6 s en caliente vs ~6 s en frío
-            "options": ["temperature": 0],
+            "options": options,
             "messages": [
-                ["role": "system", "content": Prompt.system],
+                ["role": "system", "content": Prompt.system(context: context)],
                 ["role": "user", "content": Prompt.userText, "images": [png.base64EncodedString()]],
             ],
         ]
+    }
+
+    /// Ollama recorta en silencio lo que no cabe en su ventana por defecto (unos miles de tokens), y la
+    /// captura sola ya ocupa ~2 mil: con contexto se agranda para que entren el material, la imagen y la
+    /// respuesta. Cuenta ~3 bytes por token, de sobra para texto en español.
+    static func contextLength(for context: String) -> Int {
+        let tokens = context.utf8.count / 3 + 4096
+        return max(8192, (tokens + 4095) / 4096 * 4096)
     }
 
     public static func parseResponse(data: Data, status: Int) throws -> String {
@@ -32,11 +44,11 @@ public struct OllamaBackend: Backend {
         return content
     }
 
-    public func solve(png: Data, model: String) async throws -> String {
+    public func solve(png: Data, model: String, context: String?) async throws -> String {
         var request = URLRequest(url: baseURL.appending(path: "api/chat"), timeoutInterval: 180)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "content-type")
-        request.httpBody = try Self.requestBody(png: png, model: model).jsonData()
+        request.httpBody = try Self.requestBody(png: png, model: model, context: context).jsonData()
         let data: Data, response: URLResponse
         do {
             (data, response) = try await URLSession.shared.data(for: request)

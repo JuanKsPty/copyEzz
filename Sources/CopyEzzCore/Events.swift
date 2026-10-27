@@ -14,11 +14,13 @@ public struct SolveResult: Codable, Equatable, Sendable {
     public var answer: String?
     public var detail: String?
     public var error: String?
+    /// Nombre del archivo de contexto con el que se respondió, si había uno.
+    public var context: String?
     public var ms: Int
 
     public init(
         type: Kind, id: Int, ts: Double, backend: String, model: String,
-        answer: String? = nil, detail: String? = nil, error: String? = nil, ms: Int
+        answer: String? = nil, detail: String? = nil, error: String? = nil, context: String? = nil, ms: Int
     ) {
         self.type = type
         self.id = id
@@ -28,6 +30,7 @@ public struct SolveResult: Codable, Equatable, Sendable {
         self.answer = answer
         self.detail = detail
         self.error = error
+        self.context = context
         self.ms = ms
     }
 
@@ -50,21 +53,23 @@ public struct BackendConfig: Codable, Equatable, Sendable {
     }
 }
 
-/// Eventos SSE de `/events` (contrato de la versión Python).
+/// Eventos SSE de `/events` (contrato de la versión Python, más el contexto).
 public enum ServerEvent: Sendable {
-    case hello(BackendConfig, busy: Bool, results: [SolveResult])
+    case hello(BackendConfig, busy: Bool, results: [SolveResult], context: QuizContext.Info?)
     case config(BackendConfig)
     case thinking(id: Int)
     case result(SolveResult)
+    /// Se cargó o se quitó el archivo de contexto (`nil`).
+    case context(QuizContext.Info?)
 
     public func json() -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let data: Data?
         switch self {
-        case let .hello(config, busy, results):
+        case let .hello(config, busy, results, context):
             data = try? encoder.encode(Hello(type: "hello", backend: config.backend, model: config.model,
-                                             backends: config.backends, busy: busy, results: results))
+                                             backends: config.backends, busy: busy, results: results, context: context))
         case let .config(config):
             data = try? encoder.encode(Config(type: "config", backend: config.backend, model: config.model,
                                               backends: config.backends))
@@ -72,6 +77,8 @@ public enum ServerEvent: Sendable {
             data = try? encoder.encode(Thinking(type: "thinking", id: id))
         case let .result(result):
             data = try? encoder.encode(result)
+        case let .context(context):
+            data = try? encoder.encode(Context(type: "context", context: context))
         }
         return data ?? Data("{}".utf8)
     }
@@ -86,6 +93,7 @@ public enum ServerEvent: Sendable {
         let backends: [String: String]
         let busy: Bool
         let results: [SolveResult]
+        let context: QuizContext.Info?
     }
 
     private struct Config: Encodable {
@@ -96,5 +104,10 @@ public enum ServerEvent: Sendable {
     private struct Thinking: Encodable {
         let type: String
         let id: Int
+    }
+
+    private struct Context: Encodable {
+        let type: String
+        let context: QuizContext.Info?
     }
 }

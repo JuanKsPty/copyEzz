@@ -1,8 +1,9 @@
 import Foundation
 
-/// Un motor recibe el PNG de la captura y devuelve el texto del modelo (dos líneas, ver `Prompt`).
+/// Un motor recibe el PNG de la captura y el contexto del usuario (si cargó uno) y devuelve el texto
+/// del modelo (dos líneas, ver `Prompt`).
 public protocol Backend: Sendable {
-    func solve(png: Data, model: String) async throws -> String
+    func solve(png: Data, model: String, context: String?) async throws -> String
 }
 
 public enum BackendKind: String, CaseIterable, Codable, Identifiable, Sendable {

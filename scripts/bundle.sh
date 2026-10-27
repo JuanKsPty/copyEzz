@@ -12,17 +12,21 @@ IDENTITY=${SIGN_IDENTITY:-CopyEzz Self-Signed}
 APP=dist/CopyEzz.app
 SPARKLE=.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework
 
+# El motor nuevo de SwiftPM (swiftbuild) sin Xcode enlaza como si el SDK fuera el 14.0 (macOS aplica
+# entonces los comportamientos de compatibilidad de ese SDK) y deja ambas arquitecturas en la misma ruta.
+# El motor native, aunque obsoleto, arma la app igual que hasta la 0.1.1.
+BUILD=(swift build -c "$CONFIG" --build-system native)
 if [ "${UNIVERSAL:-0}" = 1 ]; then
   BINARIES=()
   for arch in arm64 x86_64; do
-    swift build -c "$CONFIG" --triple "$arch-apple-macosx14.0"
-    BINARIES+=("$(swift build -c "$CONFIG" --triple "$arch-apple-macosx14.0" --show-bin-path)/CopyEzz")
+    "${BUILD[@]}" --triple "$arch-apple-macosx14.0"
+    BINARIES+=("$("${BUILD[@]}" --triple "$arch-apple-macosx14.0" --show-bin-path)/CopyEzz")
   done
   BINARY=.build/CopyEzz-universal
   lipo -create "${BINARIES[@]}" -output "$BINARY"
 else
-  swift build -c "$CONFIG"
-  BINARY="$(swift build -c "$CONFIG" --show-bin-path)/CopyEzz"
+  "${BUILD[@]}"
+  BINARY="$("${BUILD[@]}" --show-bin-path)/CopyEzz"
 fi
 
 rm -rf "$APP"
